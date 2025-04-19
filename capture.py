@@ -14,26 +14,35 @@ def build_single_bitrate_command(seg_size):
 
     # on macOS with avfoundation you can capture A+V in one input
     input_spec = f"{VIDEO_DEVICE}:{AUDIO_DEVICE}" if INPUT_FORMAT == 'avfoundation' else VIDEO_DEVICE
-
-    cmd = [
-        'ffmpeg',
-        '-f', INPUT_FORMAT,
-        *(['-framerate', '30', '-video_size', '1280x720'] if INPUT_FORMAT == 'avfoundation' else []),
-        '-i', input_spec,
-
-        '-c:v', VIDEO_CODEC,
-        '-c:a', AUDIO_CODEC,
-
-        '-f', 'dash',
-        '-use_template',     '1',
-        '-use_timeline',     '1',
-        '-live',             '1',
-        '-window_size',      '5',
-        '-extra_window_size','5',
-        '-seg_duration',     str(seg_size),
-
-        mpd_path
+    # on macOS live‑DASH you must force wallclock timestamps and genpts
+    common_flags = [
+            '-hide_banner',
+            '-fflags', '+genpts',
+            '-use_wallclock_as_timestamps', '1',
+            '-thread_queue_size', '4096',
     ]
+    cmd = [
+            'ffmpeg',
+            *common_flags,
+            '-f', INPUT_FORMAT,
+            '-framerate', '30',
+            '-video_size', STREAM_PROFILES[0]['resolution'],  # ← capture at max resolution (e.g. 1920x1080)
+            '-i', input_spec,
+            '-preset', 'ultrafast',
+            '-tune', 'zerolatency',
+            '-g', '60',
+            '-keyint_min', '60',
+            '-sc_threshold', '0',
+            '-vf', 'fps=fps=30',
+            '-pix_fmt', 'yuv420p',
+            '-c:v', VIDEO_CODEC,
+            '-c:a', AUDIO_CODEC,
+            '-f', 'dash',
+            '-use_template', '1',
+            '-use_timeline', '1',
+            '-seg_duration', str(seg_size),
+            mpd_path,
+        ]
 
     return cmd
 def build_adaptive_dash_command(seg_size):
@@ -98,16 +107,16 @@ def start_dash_stream():
     for each segment size in parallel.
     """
     ensure_dirs()
-    for seg in SEGMENT_SIZES:
+    #for seg in SEGMENT_SIZES:
         # Single‑bitrate live DASH
-        cmd1 = build_single_bitrate_command(seg)
-        print(f"Starting DASH ({seg}s segments):", " ".join(cmd1))
-        subprocess.Popen(cmd1)
+    cmd1 = build_single_bitrate_command(2)
+    print(f"Starting DASH ({2}s segments):", " ".join(cmd1))
+    subprocess.Popen(cmd1)
 
         # Adaptive‑bitrate live DASH
-        cmd2 = build_adaptive_dash_command(seg)
-        print(f"Starting adaptive DASH ({seg}s segments):", " ".join(cmd2))
-        subprocess.Popen(cmd2)
+    #cmd2 = build_adaptive_dash_command(2)
+    #print(f"Starting adaptive DASH ({2}s segments):", " ".join(cmd2))
+    #subprocess.Popen(cmd2)
 
 if __name__ == '__main__':
     start_dash_stream()
