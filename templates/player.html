@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live Surveillance Player</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    #video { width: 100%; max-width: 800px; background: #000; }
+    #controls { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+    #motionIndicator { color: red; font-weight: bold; margin-left: 10px; }
+  </style>
+
+  <!-- dash.js library -->
+  <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+</head>
+<body>
+  <video id="video" controls autoplay></video>
+
+  <div id="controls">
+    <button id="playPause">Pause</button>
+    <button id="goLive">Go Live</button>
+    <button id="screenshot">Screenshot</button>
+    <span id="motionIndicator"></span>
+  </div>
+
+  <script>
+    // 1) initialize dash.js player
+    const video = document.getElementById('video');
+    const player = dashjs.MediaPlayer().create();
+    player.initialize(video, '/dash/2s/stream.mpd', true);  // true = autoplay
+
+    // 2) wire up your UI controls
+    const playPauseBtn    = document.getElementById('playPause');
+    const goLiveBtn       = document.getElementById('goLive');
+    const screenshotBtn   = document.getElementById('screenshot');
+    const motionIndicator = document.getElementById('motionIndicator');
+
+    playPauseBtn.onclick = () => {
+      if (video.paused) {
+        video.play();
+        playPauseBtn.textContent = 'Pause';
+      } else {
+        video.pause();
+        playPauseBtn.textContent = 'Play';
+      }
+    };
+
+    goLiveBtn.onclick = () => {
+      // dash.js updates video.duration for live; this jumps to the live edge
+      player.seek(video.duration)
+    };
+
+    screenshotBtn.onclick = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const a = document.createElement('a');
+      a.href        = canvas.toDataURL('image/png');
+      a.download    = `screenshot_${Date.now()}.png`;
+      a.click();
+    };
+
+    // 3) poll your motion‑detect endpoint
+    setInterval(async () => {
+      try {
+        const res = await fetch('/motion');
+        if (!res.ok) return;
+        const { detected, timestamp } = await res.json();
+        if (detected) {
+          motionIndicator.textContent = `Motion at ${timestamp}`;
+          setTimeout(() => { motionIndicator.textContent = ''; }, 5000);
+        }
+      } catch (e) {
+        console.warn('motion poll error', e);
+      }
+    }, 2000);
+  </script>
+</body>
+</html>
