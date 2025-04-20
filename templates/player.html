@@ -27,16 +27,21 @@
   <script>
     // 1) initialize dash.js player
     const video = document.getElementById('video');
+
     const player = dashjs.MediaPlayer().create();
     player.updateSettings({
+      autoSwitchBitrate: { video: true },
+      initialBitrate:    { video: 3000 },   // start medium‑quality
+      useDefaultABRRules: true,
         streaming: {
             dvr: { // seconds
-                enable: true    // match your window_size × segment_duration
+                enable: true,
+                window: 600// match your window_size × segment_duration
             }
         }
     });
 
-    player.initialize(video, '/dash/2s/stream.mpd', true);  // true = autoplay
+    player.initialize(video, '/dash/adaptive_2s/stream.mpd', true);  // true = autoplay
     // 2) wire up your UI controls
     const playPauseBtn    = document.getElementById('playPause');
     const goLiveBtn       = document.getElementById('goLive');

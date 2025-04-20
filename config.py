@@ -33,4 +33,5 @@ STREAM_PROFILES = [
 ]
 
 # ——— Motion Detection ———
-MOTION_MIN_AREA = 500        # min contour area in pixels to count as motion
+MOTION_MIN_AREA = 2000
+MOTION_THRESHOLD = 0.05# min contour area in pixels to count as motion

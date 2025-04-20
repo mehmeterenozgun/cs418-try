@@ -3,6 +3,7 @@ os.environ['OPENCV_AVFOUNDATION_SKIP_AUTH'] = '1'
 import cv2
 from config import VIDEO_DEVICE, MOTION_MIN_AREA
 import platform
+import time
 
 class MotionDetector:
     def __init__(self, callback):
@@ -14,6 +15,7 @@ class MotionDetector:
             self.cam = cv2.VideoCapture(VIDEO_DEVICE)
         self.callback = callback
         self.avg = None
+        self._last_alert = 0
 
     def start(self):
         while True:
@@ -42,5 +44,8 @@ class MotionDetector:
                 if cv2.contourArea(c) < MOTION_MIN_AREA:
                     continue
                 # motion detected!
-                self.callback()
+                now = time.time()
+                if now - self._last_alert > 5:
+                    self.callback()
+                    self._last_alert = now
                 break
