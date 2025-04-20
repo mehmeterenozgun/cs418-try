@@ -1,9 +1,10 @@
-import threading, time
+import threading, time, subprocess
 from flask import (
     Flask, send_from_directory,
-    jsonify, render_template
+    jsonify, render_template,
+    Response, request
 )
-from config import HOST, PORT, SEGMENT_DIR, THUMBNAIL_DIR
+from config import HOST, PORT, SEGMENT_DIR
 from motion import MotionDetector
 
 app = Flask(
@@ -11,9 +12,9 @@ app = Flask(
     static_folder=SEGMENT_DIR,
     template_folder='templates'
 )
-
+STREAM_START = None
 # shared motion event state
-motion_event = {'detected': False, 'timestamp': None}
+motion_event = {'detected': False, 'timestamp': None, 'offset': None}
 
 @app.route('/')
 def index():
@@ -23,10 +24,6 @@ def index():
 def dash_files(filename):
     return send_from_directory(SEGMENT_DIR, filename)
 
-@app.route('/thumbnails/<path:filename>')
-def thumbnails(filename):
-    return send_from_directory(THUMBNAIL_DIR, filename)
-
 @app.route('/motion')
 def motion_status():
     global motion_event
@@ -35,27 +32,25 @@ def motion_status():
     motion_event['timestamp'] = None
     return jsonify(resp)
 
-def motion_callback():
-    global motion_event
+def motion_callback(timestamp):
     motion_event['detected'] = True
-    motion_event['timestamp'] = time.strftime("%Y-%m-%d %H:%M:%S")
+    # wall‑clock
+    ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
+    # offset from stream start, in seconds
+    off = timestamp - STREAM_START
+    motion_event['detected'] = True
+    motion_event['timestamp'] = ts
+    motion_event['offset'] = off
 
 def start_motion_detector():
     md = MotionDetector(callback=motion_callback)
-    md.start()
+    t = threading.Thread(target=md.start, daemon=True)
+    t.start()
 
 if __name__ == '__main__':
     import capture
 
-    # 1) start DASH segmenters
+    STREAM_START = time.time()
     capture.start_dash_stream()
-
-
-    # run Flask in a background thread
-    flask_thread = threading.Thread(
-        target=lambda: app.run(host=HOST, port=PORT, threaded=True),
-        daemon=True
-    )
-    flask_thread.start()
-
     start_motion_detector()
+    app.run(host=HOST, port=PORT, threaded=True)

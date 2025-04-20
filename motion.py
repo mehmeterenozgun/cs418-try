@@ -15,7 +15,7 @@ class MotionDetector:
             self.cam = cv2.VideoCapture(VIDEO_DEVICE)
         self.callback = callback
         self.avg = None
-        self._last_alert = 0
+        self._last_alert = time.time()
 
     def start(self):
         while True:
@@ -46,6 +46,7 @@ class MotionDetector:
                 # motion detected!
                 now = time.time()
                 if now - self._last_alert > 5:
-                    self.callback()
+                    self.callback(now)
                     self._last_alert = now
                 break
+            time.sleep(0.01)

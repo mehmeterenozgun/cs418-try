@@ -41,7 +41,7 @@
         }
     });
 
-    player.initialize(video, '/dash/adaptive_2s/stream.mpd', true);  // true = autoplay
+    player.initialize(video, '/dash/2s/stream.mpd', true);  // true = autoplay
     // 2) wire up your UI controls
     const playPauseBtn    = document.getElementById('playPause');
     const goLiveBtn       = document.getElementById('goLive');
@@ -73,6 +73,14 @@
       a.download    = `screenshot_${Date.now()}.png`;
       a.click();
     };
+    const snapImg = document.createElement('img');
+    Object.assign(snapImg.style, {
+      position:   'absolute',
+      width:      '160px',
+      display:    'none',
+      pointerEvents: 'none'
+    });
+    document.body.appendChild(snapImg);
 
     // 3) poll your motion‑detect endpoint
     setInterval(async () => {
@@ -82,6 +90,7 @@
         const { detected, timestamp } = await res.json();
         if (detected) {
           motionIndicator.textContent = `Motion at ${timestamp}`;
+          console.log(`Motion happened ${offset.toFixed(1)}s after stream started`);
           setTimeout(() => { motionIndicator.textContent = ''; }, 5000);
         }
       } catch (e) {

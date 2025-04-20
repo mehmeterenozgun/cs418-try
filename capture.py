@@ -1,6 +1,6 @@
 import subprocess
 import os
-from config import INPUT_FORMAT, VIDEO_DEVICE, AUDIO_DEVICE, SEGMENT_SIZES, VIDEO_CODEC, AUDIO_CODEC, SEGMENT_DIR, STREAM_PROFILES
+from config import INPUT_FORMAT, VIDEO_DEVICE, AUDIO_DEVICE, SEGMENT_SIZES, VIDEO_CODEC, AUDIO_CODEC, SEGMENT_DIR, STREAM_PROFILES, seg
 
 def ensure_dirs():
     os.makedirs(SEGMENT_DIR, exist_ok=True)
@@ -43,7 +43,7 @@ def build_single_bitrate_command(seg_size):
             '-use_template', '1',
             '-use_timeline', '1',
             '-live', '1',
-            '-window_size', '300',  # 300 * seg_size(2s) = 600 s = 10 min
+            '-window_size', '300',
             '-extra_window_size', '50',
             '-seg_duration', str(seg_size),
             mpd_path,
@@ -60,7 +60,7 @@ def build_adaptive_dash_command(seg_size):
 
     # 1) build the filter graph to split+scale video into three outputs
     #    labels: [v0out] 1920x1080, [v1out] 1280x720, [v2out] 640x360
-    # split → scale → enforce 30 fps & yuv420p on each rendition
+    # split → scale → enforce 30fps & yuv420p on each rendition
     filter_complex_string = (
          "[0:v]fps=fps=30,split=3[v0][v1][v2];"
          "[v0]scale={res0},format=yuv420p[v0out];"
@@ -81,26 +81,23 @@ def build_adaptive_dash_command(seg_size):
     # 2) assemble the ffmpeg command
     cmd = [
         'ffmpeg',
-        # ——— inputs ———
         *common_flags,
         '-f', INPUT_FORMAT,
         '-framerate', '30',
         '-video_size', STREAM_PROFILES[0]['resolution'],  # pick a capture size
-        '-i', f'{VIDEO_DEVICE}',      # <-- input 0: video-only
+        '-i', f'{VIDEO_DEVICE}',
         '-f', INPUT_FORMAT,
-        '-i', f':{AUDIO_DEVICE}',      # <-- input 1: audio-only
+        '-i', f':{AUDIO_DEVICE}',
 
-        # ——— filtering & mapping ———
         '-filter_complex', filter_complex_string,
-        # video renditions:+
-        # per‑stream bitrate specifiers (match streams to profiles)  [oai_citation_attribution:0‡Stack Overflow](https://stackoverflow.com/questions/48256686/how-to-create-multi-bit-rate-dash-content-using-ffmpeg-dash-muxer?utm_source=chatgpt.com)
+        # video renditions:
         '-map', '[v0out]', '-c:v:0', VIDEO_CODEC, '-b:v:0', STREAM_PROFILES[0]['bitrate'],
         '-map', '[v1out]', '-c:v:1', VIDEO_CODEC, '-b:v:1', STREAM_PROFILES[1]['bitrate'],
         '-map', '[v2out]', '-c:v:2', VIDEO_CODEC, '-b:v:2', STREAM_PROFILES[2]['bitrate'],
-        # audio from input 1:
+        # audio from input 1:
         '-map', '1:a',       '-c:a', AUDIO_CODEC,
 
-        # ——— DASH live settings ———
+        # DASH live settings
         '-f', 'dash',
         '-use_template',     '1',
         '-use_timeline',     '1',
@@ -117,21 +114,20 @@ def build_adaptive_dash_command(seg_size):
     return cmd
 
 def start_dash_stream():
-    """
-    Launches one single‑bitrate and one adaptive‑bitrate FFmpeg process
-    for each segment size in parallel.
-    """
     ensure_dirs()
-    #for seg in SEGMENT_SIZES:
-        # Single‑bitrate live DASH
-    #cmd1 = build_single_bitrate_command(6)
-    #print(f"Starting DASH ({6}s segments):", " ".join(cmd1))
-    #subprocess.Popen(cmd1)
 
-        # Adaptive‑bitrate live DASH
-    cmd2 = build_adaptive_dash_command(2)
-    print(f"Starting adaptive DASH ({2}s segments):", " ".join(cmd2))
-    subprocess.Popen(cmd2)
+    # Assign the seg=${intended-segment-size}
+    # If you adaptive stream comment-out lines 123-125, uncomment-out lines 128-130.
+    # If you want single-bitrate stream comment-out lines 128-130, uncomment-out lines 123-125.
+    # Single‑bitrate live DASH
+    cmd1 = build_single_bitrate_command(seg)
+    print(f"Starting DASH ({seg}s segments):", " ".join(cmd1))
+    subprocess.Popen(cmd1)
+
+    # Adaptive‑bitrate live DASH
+    #cmd2 = build_adaptive_dash_command(seg)
+    #print(f"Starting adaptive DASH ({seg}s segments):", " ".join(cmd2))
+    #subprocess.Popen(cmd2)
 
 if __name__ == '__main__':
     start_dash_stream()
